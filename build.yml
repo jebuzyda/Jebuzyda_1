@@ -1,0 +1,53 @@
+name: Build and Publish Marlin Firmware (Octopus v1.1)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - bugfix-2.1.x
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install PlatformIO
+        run: |
+          sudo apt update
+          sudo apt install -y python3 python3-pip git build-essential
+          pip3 install -U platformio
+
+      - name: Clone Marlin (bugfix-2.1.x)
+        run: |
+          git clone https://github.com/MarlinFirmware/Marlin.git
+          cd Marlin
+          git checkout bugfix-2.1.x
+
+      - name: Copy custom configuration from your repo
+        run: |
+          cp -v ./config_files/Configuration.h ./Marlin/Configuration.h || true
+          cp -v ./config_files/Configuration_adv.h ./Marlin/Configuration_adv.h || true
+          cp -v ./config_files/config.ini ./Marlin/config.ini || true
+          cp -v ./config_files/platformio.ini ./platformio.ini || true
+
+      - name: Build firmware for Octopus v1.1
+        working-directory: Marlin
+        run: |
+          pio run -e BIGTREE_OCTOPUS_V1_1
+
+      - name: Push firmware.bin to branch 'firmware_builds'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout -B firmware_builds
+          cp ./Marlin/.pio/build/BIGTREE_OCTOPUS_V1_1/firmware.bin ./firmware.bin
+          git add firmware.bin
+          git commit -m "Automated firmware build ($(date))"
+          git push origin firmware_builds --force
